@@ -1,0 +1,751 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>تيكو القابضة - لعبة تنافسية متعددة اللاعبين</title>
+    <script src="/socket.io/socket.io.js"></script>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; font-family: 'Segoe UI', Tahoma; }
+        body {
+            background: linear-gradient(135deg, #0a0f1e 0%, #1a2332 100%);
+            min-height: 100vh;
+            color: #e0e0e0;
+            padding: 10px;
+        }
+        .game-container {
+            max-width: 1500px;
+            margin: auto;
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+        }
+        .header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            flex-wrap: wrap;
+            background: rgba(20,30,48,0.95);
+            border-radius: 20px;
+            padding: 15px 20px;
+            border: 1px solid rgba(255,215,0,0.2);
+        }
+        .logo {
+            font-size: 2rem;
+            font-weight: 900;
+            background: linear-gradient(135deg, #f9d423, #ff4e50);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+        .online-badge {
+            background: #4caf50;
+            color: white;
+            padding: 4px 12px;
+            border-radius: 20px;
+            font-size: 0.8rem;
+        }
+        .stats-bar {
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+        }
+        .stat {
+            background: rgba(0,0,0,0.5);
+            padding: 8px 14px;
+            border-radius: 12px;
+            text-align: center;
+            border: 1px solid rgba(255,255,255,0.1);
+        }
+        .stat-val { font-size: 1.2rem; font-weight: bold; color: #f9d423; }
+        .stat-lbl { font-size: 0.7rem; color: #aaa; }
+        .main-layout {
+            display: grid;
+            grid-template-columns: 1fr 320px;
+            gap: 12px;
+        }
+        .left-col { display: flex; flex-direction: column; gap: 12px; }
+        .card {
+            background: rgba(20,30,48,0.95);
+            border-radius: 18px;
+            padding: 18px;
+            border: 1px solid rgba(255,255,255,0.08);
+        }
+        .card-title {
+            font-size: 1.1rem;
+            font-weight: bold;
+            color: #f9d423;
+            margin-bottom: 12px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        .tabs {
+            display: flex;
+            gap: 4px;
+            flex-wrap: wrap;
+        }
+        .tab {
+            padding: 8px 14px;
+            background: rgba(0,0,0,0.4);
+            border: 1px solid rgba(255,255,255,0.1);
+            border-radius: 10px 10px 0 0;
+            cursor: pointer;
+            font-size: 0.8rem;
+            font-weight: bold;
+            transition: all 0.2s;
+        }
+        .tab.active {
+            background: rgba(249,212,35,0.2);
+            border-color: #f9d423;
+            color: #f9d423;
+        }
+        .tab-panel {
+            display: none;
+            background: rgba(255,255,255,0.02);
+            border-radius: 0 14px 14px 14px;
+            padding: 16px;
+            border: 1px solid rgba(255,255,255,0.06);
+            max-height: 400px;
+            overflow-y: auto;
+        }
+        .tab-panel.active { display: block; }
+        .item-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            background: rgba(0,0,0,0.3);
+            padding: 8px 12px;
+            border-radius: 10px;
+            margin-bottom: 6px;
+            font-size: 0.85rem;
+        }
+        .btn {
+            background: linear-gradient(135deg, #2a3a4a, #1a2a3a);
+            border: none;
+            color: white;
+            padding: 7px 14px;
+            border-radius: 10px;
+            cursor: pointer;
+            font-weight: bold;
+            font-size: 0.8rem;
+            border: 1px solid rgba(255,255,255,0.15);
+            white-space: nowrap;
+            transition: all 0.2s;
+        }
+        .btn:hover {
+            background: linear-gradient(135deg, #f9d423, #e0a800);
+            color: #0a0f1e;
+            border-color: #f9d423;
+            transform: translateY(-1px);
+        }
+        .btn-sm { padding: 5px 10px; font-size: 0.7rem; }
+        .btn-success { background: rgba(40,167,69,0.2); border-color: rgba(40,167,69,0.5); }
+        .btn-danger { background: rgba(220,53,69,0.2); border-color: rgba(220,53,69,0.5); }
+        .btn-gold { background: linear-gradient(135deg, #f9d423, #e0a800); color: #0a0f1e; font-weight: bold; }
+        .leaderboard {
+            background: rgba(20,30,48,0.95);
+            border-radius: 18px;
+            padding: 16px;
+            border: 1px solid rgba(255,215,0,0.3);
+            position: sticky;
+            top: 10px;
+        }
+        .lb-title {
+            text-align: center;
+            font-size: 1.2rem;
+            font-weight: bold;
+            color: #f9d423;
+            margin-bottom: 12px;
+        }
+        .lb-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 10px;
+            border-radius: 10px;
+            margin-bottom: 6px;
+            background: rgba(0,0,0,0.3);
+            font-size: 0.85rem;
+        }
+        .lb-item.me {
+            background: rgba(249,212,35,0.2);
+            border: 1px solid #f9d423;
+        }
+        .lb-rank {
+            width: 30px;
+            height: 30px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: bold;
+            font-size: 0.9rem;
+        }
+        .rank-1 { background: #ffd700; color: #000; }
+        .rank-2 { background: #c0c0c0; color: #000; }
+        .rank-3 { background: #cd7f32; color: #000; }
+        .notification {
+            position: fixed;
+            top: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: #1a2332;
+            border: 2px solid #f9d423;
+            padding: 12px 24px;
+            border-radius: 20px;
+            z-index: 1000;
+            animation: slideIn 0.3s ease;
+            font-weight: bold;
+        }
+        @keyframes slideIn {
+            from { opacity: 0; transform: translateX(-50%) translateY(-30px); }
+            to { opacity: 1; transform: translateX(-50%) translateY(0); }
+        }
+        .modal-overlay {
+            position: fixed;
+            inset: 0;
+            background: rgba(0,0,0,0.85);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 500;
+        }
+        .modal-box {
+            background: #1a2332;
+            padding: 30px;
+            border-radius: 24px;
+            text-align: center;
+            border: 2px solid #f9d423;
+            max-width: 450px;
+            width: 90%;
+        }
+        input, select {
+            background: #0a0f1e;
+            border: 1px solid #444;
+            color: white;
+            padding: 10px;
+            border-radius: 10px;
+            margin: 6px 0;
+            width: 100%;
+            font-size: 0.9rem;
+        }
+        .pulse {
+            animation: pulse 1.5s infinite;
+        }
+        @keyframes pulse {
+            0% { box-shadow: 0 0 0 0 rgba(249,212,35,0.4); }
+            70% { box-shadow: 0 0 0 12px rgba(249,212,35,0); }
+            100% { box-shadow: 0 0 0 0 rgba(249,212,35,0); }
+        }
+        @media (max-width: 900px) {
+            .main-layout { grid-template-columns: 1fr; }
+            .leaderboard { position: static; }
+        }
+    </style>
+</head>
+<body>
+    <div id="app">
+        <!-- ========== شاشة التسجيل ========== -->
+        <div id="registerScreen" class="modal-overlay">
+            <div class="modal-box">
+                <h2 style="color:#f9d423; margin-bottom:20px;">🏢 سجل شركتك</h2>
+                <input id="regPlayerName" placeholder="اسمك" value="رائد الأعمال">
+                <input id="regCompanyName" placeholder="اسم الشركة" value="تيكو القابضة">
+                <button class="btn btn-gold" onclick="registerPlayer()" style="width:100%; margin-top:12px; padding:12px;">
+                    🚀 دخول عالم المنافسة
+                </button>
+                <p style="margin-top:10px; font-size:0.7rem; color:#aaa;">سيتم ربطك مباشرة مع جميع اللاعبين الآخرين</p>
+            </div>
+        </div>
+
+        <!-- ========== اللعبة الرئيسية ========== -->
+        <div id="gameScreen" style="display:none;">
+            <div class="game-container">
+                <div class="header">
+                    <div>
+                        <span class="logo">🏢 <span id="myCompanyName">تيكو</span></span>
+                        <span class="online-badge pulse" id="playersOnline">🟢 0 متصل</span>
+                    </div>
+                    <div class="stats-bar">
+                        <div class="stat"><div class="stat-val" id="myCash">2.5M</div><div class="stat-lbl">💰 النقد</div></div>
+                        <div class="stat"><div class="stat-val" id="myRep">75</div><div class="stat-lbl">⭐ السمعة</div></div>
+                        <div class="stat"><div class="stat-val" id="myShare">10%</div><div class="stat-lbl">📊 الحصة</div></div>
+                        <div class="stat"><div class="stat-val" id="myDay">1</div><div class="stat-lbl">📅 اليوم</div></div>
+                        <div class="stat"><div class="stat-val" id="myRank">-</div><div class="stat-lbl">🏆 الترتيب</div></div>
+                    </div>
+                </div>
+
+                <div class="main-layout">
+                    <div class="left-col">
+                        <div class="tabs">
+                            <div class="tab active" onclick="switchTab('company')">🏢 الشركة</div>
+                            <div class="tab" onclick="switchTab('market')">📈 البورصة</div>
+                            <div class="tab" onclick="switchTab('contracts')">📋 العقود</div>
+                            <div class="tab" onclick="switchTab('competitors')">⚔️ المنافسون</div>
+                        </div>
+
+                        <div id="tab-company" class="tab-panel active">
+                            <div class="card-title">👥 الموظفون (<span id="empCount">3</span>)</div>
+                            <div id="empList"></div>
+                            <button class="btn btn-sm" onclick="hireEmp()">➕ توظيف (50,000)</button>
+
+                            <div class="card-title" style="margin-top:15px;">🏭 الفروع (<span id="branchCnt">2</span>)</div>
+                            <div id="branchList"></div>
+                            <button class="btn btn-sm" onclick="openBranch()">🏗️ افتتاح فرع (300,000)</button>
+
+                            <div style="margin-top:15px;">
+                                <span>⚠️ الفساد: <span id="corrVal">15%</span></span>
+                                <button class="btn btn-sm btn-danger" onclick="audit()">🔍 تدقيق (80,000)</button>
+                            </div>
+                        </div>
+
+                        <div id="tab-market" class="tab-panel">
+                            <div class="card-title">📈 سوق الأسهم</div>
+                            <div id="stockList"></div>
+                            <button class="btn btn-sm btn-success" onclick="buyStock()">شراء 10 أسهم</button>
+                            <button class="btn btn-sm btn-danger" onclick="sellStock()">بيع 5 أسهم</button>
+                            <span style="margin-right:10px;">📦 محفظتي: <span id="myPortfolio">0</span> سهم</span>
+                        </div>
+
+                        <div id="tab-contracts" class="tab-panel">
+                            <div class="card-title">📋 العقود المتاحة</div>
+                            <div id="contractList">لا توجد عقود حالياً</div>
+                            <button class="btn btn-sm" onclick="newContract()">📄 البحث عن عقد</button>
+                        </div>
+
+                        <div id="tab-competitors" class="tab-panel">
+                            <div class="card-title">⚔️ الشركات المنافسة</div>
+                            <div id="competitorList">جاري تحميل المنافسين...</div>
+                            <button class="btn btn-sm" onclick="sabotage()" style="margin-top:8px;">🕵️ حملة تنافسية (150,000)</button>
+                        </div>
+                    </div>
+
+                    <div style="display:flex; flex-direction:column; gap:12px;">
+                        <div class="leaderboard">
+                            <div class="lb-title">🏆 لوحة الصدارة</div>
+                            <div id="lbList">جاري تحميل الترتيب...</div>
+                        </div>
+                        <button class="btn btn-gold" onclick="nextDay()" style="padding:14px;">📆 اليوم التالي ▶</button>
+                        <div class="card" style="max-height:200px; overflow-y:auto; font-size:0.75rem;" id="eventLog">
+                            <div>📌 جاهز للمنافسة!</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ========== الإشعارات ========== -->
+    <div id="notificationArea"></div>
+
+    <script>
+        // ========== المتغيرات العامة ==========
+        let socket;
+        let playerId = localStorage.getItem('teco_playerId');
+        let player = {
+            cash: 2500000, reputation: 75, marketShare: 10, day: 1,
+            stockPrice: 50, corruption: 15, employees: [], branches: [],
+            portfolio: 0, contracts: []
+        };
+        let gameState = { players: {}, rankings: [], events: [] };
+        let stocks = [
+            { symbol: 'سابك', price: 120, change: 1.5 },
+            { symbol: 'أرامكو', price: 35, change: -0.8 },
+            { symbol: 'الراجحي', price: 88, change: 2.2 },
+            { symbol: 'STC', price: 42, change: 0.5 },
+            { symbol: 'معادن', price: 56, change: -1.2 }
+        ];
+
+        // ========== الاتصال بالخادم ==========
+        function connectSocket() {
+            socket = io();
+            socket.on('connect', () => {
+                console.log('🟢 متصل بالخادم');
+                if (playerId) socket.emit('join', { playerId });
+            });
+            socket.on('gameState', (data) => {
+                gameState = data;
+                updateLeaderboard();
+                updateCompetitors();
+                updateOnlineCount();
+            });
+            socket.on('playerUpdated', (data) => {
+                gameState.players[data.playerId] = data.player;
+                gameState.rankings = data.rankings;
+                updateLeaderboard();
+                updateCompetitors();
+            });
+            socket.on('playerOnline', (data) => {
+                showNotification(`🟢 ${data.companyName} دخل المنافسة!`);
+                updateOnlineCount();
+            });
+            socket.on('playerOffline', (data) => {
+                updateOnlineCount();
+            });
+            socket.on('actionNotification', (data) => {
+                if (data.playerId !== playerId) {
+                    showNotification(`📢 ${data.playerName}: ${data.action}`);
+                }
+            });
+            socket.on('challengeSent', (data) => {
+                showNotification(`⚡ ${data.from} تتحدى ${data.to} بمبلغ ${data.amount?.toLocaleString()}!`);
+            });
+        }
+
+        // ========== التسجيل ==========
+        async function registerPlayer() {
+            const playerName = document.getElementById('regPlayerName').value || 'لاعب';
+            const companyName = document.getElementById('regCompanyName').value || 'شركة';
+
+            try {
+                const res = await fetch('/api/register', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ playerName, companyName })
+                });
+                const data = await res.json();
+                if (data.success) {
+                    playerId = data.playerId;
+                    localStorage.setItem('teco_playerId', playerId);
+                    player = data.player;
+                    gameState = data.gameData;
+
+                    // تهيئة الموظفين والفروع
+                    player.employees = [
+                        { id: 1, name: 'أحمد المالكي', role: 'مدير مالي', salary: 15000, perf: 80, loyal: 85 },
+                        { id: 2, name: 'سارة الحربي', role: 'مديرة تسويق', salary: 13000, perf: 75, loyal: 80 },
+                        { id: 3, name: 'خالد الشمري', role: 'مدير عمليات', salary: 12000, perf: 70, loyal: 65 }
+                    ];
+                    player.branches = [
+                        { id: 1, name: 'الفرع الرئيسي', revenue: 90000, cost: 45000, risk: 8 },
+                        { id: 2, name: 'فرع جدة', revenue: 60000, cost: 32000, risk: 12 }
+                    ];
+                    player.portfolio = 0;
+                    player.contracts = [];
+
+                    document.getElementById('registerScreen').style.display = 'none';
+                    document.getElementById('gameScreen').style.display = 'block';
+                    document.getElementById('myCompanyName').textContent = companyName;
+
+                    connectSocket();
+                    updateUI();
+                    updateLeaderboard();
+                }
+            } catch (e) {
+                alert('خطأ في الاتصال بالخادم. تأكد من تشغيل السيرفر.');
+            }
+        }
+
+        // ========== تحديث واجهة المستخدم ==========
+        function updateUI() {
+            document.getElementById('myCash').textContent = (player.cash / 1000000).toFixed(1) + 'M';
+            document.getElementById('myRep').textContent = player.reputation;
+            document.getElementById('myShare').textContent = player.marketShare + '%';
+            document.getElementById('myDay').textContent = player.day;
+            document.getElementById('corrVal').textContent = player.corruption + '%';
+            document.getElementById('myPortfolio').textContent = player.portfolio;
+
+            // الموظفون
+            document.getElementById('empCount').textContent = player.employees.length;
+            document.getElementById('empList').innerHTML = player.employees.map(e => `
+                <div class="item-row">
+                    <span>${e.name} - ${e.role} | ⭐${e.perf} ❤️${e.loyal} | 💵${e.salary.toLocaleString()}</span>
+                    <button class="btn btn-sm btn-danger" onclick="fireEmp(${e.id})">طرد</button>
+                </div>`).join('');
+
+            // الفروع
+            document.getElementById('branchCnt').textContent = player.branches.length;
+            document.getElementById('branchList').innerHTML = player.branches.map(b => `
+                <div class="item-row">
+                    <span>${b.name} | إيراد: ${b.revenue.toLocaleString()} | تكلفة: ${b.cost.toLocaleString()}</span>
+                    <button class="btn btn-sm btn-danger" onclick="closeBranch(${b.id})">إغلاق</button>
+                </div>`).join('');
+
+            // الأسهم
+            document.getElementById('stockList').innerHTML = stocks.map(s => `
+                <div class="item-row">
+                    <span>${s.symbol} | ${s.price.toFixed(2)} ريال | ${s.change>0?'+':''}${s.change}%</span>
+                </div>`).join('');
+
+            // الترتيب
+            const myRank = gameState.rankings?.findIndex(r => r.playerId === playerId) ?? -1;
+            document.getElementById('myRank').textContent = myRank >= 0 ? '#' + (myRank + 1) : '-';
+        }
+
+        function updateLeaderboard() {
+            const lbList = document.getElementById('lbList');
+            if (!gameState.rankings || gameState.rankings.length === 0) {
+                  lbList.innerHTML = '<div style="text-align:center; color:#aaa;">لا يوجد لاعبون بعد</div>';
+                return;
+            }
+            lbList.innerHTML = gameState.rankings.map((r, i) => {
+                const rankClass = i === 0 ? 'rank-1' : i === 1 ? 'rank-2' : i === 2 ? 'rank-3' : '';
+                const isMe = r.playerId === playerId || r.companyName === document.getElementById('myCompanyName').textContent;
+                return `
+                <div class="lb-item ${isMe ? 'me' : ''}">
+                    <div style="display:flex; align-items:center; gap:8px;">
+                        <span class="lb-rank ${rankClass}">${i+1}</span>
+                        <span>${r.companyName}</span>
+                        ${r.online ? '🟢' : '⚫'}
+                    </div>
+                    <span>${(r.cash/1000000).toFixed(1)}M</span>
+                </div>`;
+            }).join('');
+            updateUI();
+        }
+
+        function updateCompetitors() {
+            const list = document.getElementById('competitorList');
+            const others = Object.values(gameState.players).filter(p => p.id !== playerId);
+            if (others.length === 0) {
+                list.innerHTML = '<div>لا يوجد منافسون بعد. ادعُ أصدقائك!</div>';
+                return;
+            }
+            list.innerHTML = others.map(p => `
+                <div class="item-row">
+                    <span>${p.companyName} | 💰${(p.cash/1e6).toFixed(1)}M | 📊${p.marketShare}%</span>
+                    <button class="btn btn-sm btn-danger" onclick="challengePlayer('${p.id}')">⚔️ تحدي</button>
+                </div>`).join('');
+        }
+
+        function updateOnlineCount() {
+            const count = Object.values(gameState.players).filter(p => p.online).length;
+            document.getElementById('playersOnline').textContent = `🟢 ${count} متصل`;
+        }
+
+        function showNotification(msg) {
+            const notif = document.createElement('div');
+            notif.className = 'notification';
+            notif.textContent = msg;
+            document.getElementById('notificationArea').appendChild(notif);
+            setTimeout(() => notif.remove(), 3000);
+        }
+
+        // ========== عمليات اللعبة ==========
+        async function syncPlayer(action) {
+            try {
+                await fetch('/api/update', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ playerId, updates: player })
+                });
+                if (socket && action) {
+                    socket.emit('playerAction', { playerId, action });
+                }
+                updateUI();
+                updateLeaderboard();
+            } catch (e) {}
+        }
+
+        function hireEmp() {
+            if (player.cash < 50000) return showNotification('⚠️ سيولة غير كافية');
+            const emp = {
+                id: Date.now(),
+                name: ['نورة', 'فهد', 'ماجد', 'لمى'][Math.floor(Math.random()*4)],
+                role: ['محلل', 'مندوب', 'محاسب'][Math.floor(Math.random()*3)],
+                salary: 8000 + Math.floor(Math.random()*7000),
+                perf: 50 + Math.floor(Math.random()*40),
+                loyal: 50 + Math.floor(Math.random()*40)
+            };
+            player.employees.push(emp);
+            player.cash -= 50000;
+            syncPlayer('وظف موظفاً جديداً');
+        }
+
+        function fireEmp(id) {
+            const emp = player.employees.find(e => e.id === id);
+            if (!emp) return;
+            player.employees = player.employees.filter(e => e.id !== id);
+            player.cash -= emp.salary * 2;
+            player.reputation -= 2;
+            syncPlayer('طرد موظفاً');
+        }
+
+        function openBranch() {
+            if (player.cash < 300000) return showNotification('⚠️ سيولة غير كافية');
+            const b = {
+                id: Date.now(),
+                name: 'فرع ' + ['الدمام', 'مكة', 'أبها', 'تبوك'][Math.floor(Math.random()*4)],
+                revenue: 50000 + Math.random()*40000,
+                cost: 30000 + Math.random()*20000,
+                risk: 5 + Math.random()*20
+            };
+            player.branches.push(b);
+            player.cash -= 300000;
+            player.marketShare += 2;
+            syncPlayer('افتتح فرعاً جديداً 🏗️');
+        }
+
+        function closeBranch(id) {
+            if (player.branches.length <= 1) return;
+            const b = player.branches.find(b => b.id === id);
+            player.branches = player.branches.filter(b => b.id !== id);
+            player.reputation -= 4;
+            player.cash -= 50000;
+            player.marketShare -= 1;
+            syncPlayer('أغلق فرعاً');
+        }
+
+        function audit() {
+            if (player.cash < 80000) return;
+            player.cash -= 80000;
+            player.corruption = Math.max(0, player.corruption - 20);
+            player.reputation += 2;
+            syncPlayer('أجرى تدقيقاً داخلياً 🔍');
+        }
+
+        function buyStock() {
+            const price = stocks[0].price * 10;
+            if (player.cash < price) return;
+            player.cash -= price;
+            player.portfolio += 10;
+            syncPlayer('اشترى أسهماً 📈');
+        }
+
+        function sellStock() {
+            if (player.portfolio < 5) return;
+            const price = stocks[0].price * 5;
+            player.cash += price;
+            player.portfolio -= 5;
+            syncPlayer('باع أسهماً 💰');
+        }
+
+        function newContract() {
+            const c = {
+                id: Date.now(),
+                name: 'عقد ' + ['توريد', 'صيانة', 'تقنية', 'استشارات'][Math.floor(Math.random()*4)],
+                value: 100000 + Math.floor(Math.random()*300000),
+                risk: 10 + Math.floor(Math.random()*30)
+            };
+            player.contracts = player.contracts || [];
+            player.contracts.push(c);
+            document.getElementById('contractList').innerHTML = player.contracts.map(c => `
+                <div class="item-row">
+                    <span>📄 ${c.name} | ${c.value.toLocaleString()} ر.س | خطورة ${c.risk}%</span>
+                    <button class="btn btn-sm btn-success" onclick="acceptContract(${c.id})">قبول</button>
+                </div>`).join('');
+        }
+
+        function acceptContract(id) {
+            const c = (player.contracts || []).find(c => c.id === id);
+            if (!c) return;
+            player.contracts = player.contracts.filter(c => c.id !== id);
+            if (Math.random() * 100 < c.risk) {
+                player.cash -= c.value * 0.3;
+                player.reputation -= 3;
+                showNotification('⚠️ فشل العقد!');
+            } else {
+                player.cash += c.value;
+                player.reputation += 3;
+                player.marketShare += 1;
+                showNotification('✅ ربح العقد!');
+            }
+            syncPlayer('قبل عقداً 📋');
+        }
+
+        function sabotage() {
+            if (player.cash < 150000) return;
+            player.cash -= 150000;
+            player.marketShare += 3;
+            player.reputation -= 1;
+            syncPlayer('شن حملة تنافسية 🕵️');
+        }
+
+        function challengePlayer(targetId) {
+            const amount = 100000;
+            if (player.cash < amount) return;
+            player.cash -= amount;
+            const target = gameState.players[targetId];
+            const won = Math.random() > 0.5;
+            if (won) {
+                player.cash += amount * 1.8;
+                player.reputation += 5;
+                showNotification(`🏆 فزت في التحدي ضد ${target?.companyName}!`);
+            } else {
+                player.reputation -= 3;
+                showNotification(`😞 خسرت التحدي ضد ${target?.companyName}`);
+            }
+            socket.emit('challenge', { fromPlayerId: playerId, toPlayerId: targetId, amount });
+            syncPlayer('تحدى منافساً ⚔️');
+        }
+
+        function nextDay() {
+            player.day++; a 
+            // الرواتب
+            let salaries = player.employees.reduce((s, e) => s + e.salary, 0);
+            player.cash -= salaries;
+            // الفروع
+            player.branches.forEach(b => {
+                let profit = (b.revenue - b.cost) * (0.9 + Math.random() * 0.3);
+                player.cash += profit;
+            });
+            // الفساد
+            if (Math.random() < player.corruption / 100) {
+                player.cash -= player.cash * 0.02;
+            }
+            player.corruption = Math.min(100, player.corruption + 1);
+            // الأسهم
+            player.stockPrice += (Math.random() - 0.5) * 2;
+            stocks.forEach(s => s.price += (Math.random() - 0.5) * 3);
+            // الضرائب
+            player.cash -= player.cash * 0.01;
+            // أحداث
+            if (Math.random() < 0.3) {
+                const ev = Math.random();
+                if (ev < 0.3) { player.cash += 50000; showNotification('📈 انتعاش مبيعات!'); }
+                else if (ev < 0.6) { player.reputation += 3; }
+                else { player.cash -= 30000; }
+            }
+            if (player.reputation > 100) player.reputation = 100;
+            if (player.cash < 0) player.cash = 0;
+
+            syncPlayer(`أنهى اليوم ${player.day} 📆`);
+            document.getElementById('eventLog').innerHTML += `<div>📅 يوم ${player.day}: تمت المحاكاة اليومية</div>`;
+            if (document.getElementById('eventLog').children.length > 20) {
+                document.getElementById('eventLog').removeChild(document.getElementById('eventLog').firstChild);
+            }
+        }
+
+        function switchTab(tab) {
+            document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+            document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
+            document.querySelector(`.tab[onclick="switchTab('${tab}')"]`).classList.add('active');
+            document.getElementById(`tab-${tab}`).classList.add('active');
+            if (tab === 'market') {
+                document.getElementById('stockList').innerHTML = stocks.map(s => `
+                    <div class="item-row">
+                        <span>${s.symbol} | ${s.price.toFixed(2)} ريال | ${s.change>0?'+':''}${s.change}%</span>
+                    </div>`).join('');
+            }
+            if (tab === 'competitors') updateCompetitors();
+        }
+
+        // ========== بدء التطبيق ==========
+        window.onload = function() {
+            if (playerId) {
+                // محاولة استعادة بيانات اللاعب
+                fetch(`/api/player/${playerId}`)
+                    .then(r => r.json())
+                    .then(data => {
+                        if (data.success) {
+                            player = data.player;
+                            gameState = { ...gameState, rankings: data.rankings };
+                            document.getElementById('registerScreen').style.display = 'none';
+                            document.getElementById('gameScreen').style.display = 'block';
+                            document.getElementById('myCompanyName').textContent = player.companyName;
+                            connectSocket();
+                            updateUI();
+                            updateLeaderboard();
+                        } else {
+                            playerId = null;
+                            localStorage.removeItem('teco_playerId');
+                        }
+                    })
+                    .catch(() => {
+                        document.getElementById('registerScreen').style.display = 'flex';
+                    });
+            }
+        };
+    </script>
+</body>
+</html>
